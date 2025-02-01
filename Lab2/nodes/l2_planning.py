@@ -54,6 +54,13 @@ class PathPlanner:
         self.vel_max = 0.5 #m/s (Feel free to change!)
         self.rot_vel_max = 0.2 #rad/s (Feel free to change!)
 
+        # Control Parameters
+        self.kP = 1.0
+        self.kI = 0.01
+        self.kD = 0.1
+        self.prev_heading_error = 0.0
+        self.accum_heading_error = 0.0
+
         #Goal Parameters
         self.goal_point = goal_point #m
         self.stopping_dist = stopping_dist #m
@@ -125,8 +132,14 @@ class PathPlanner:
             current_traj = self.trajectory_rollout(vel, rot_vel) + current_node.reshape(3, 1)
             robot_traj = np.hstack((robot_traj, current_traj))
             current_node = robot_traj[:, -1]
+            print("Current robot state: ", current_node)
+            if iteration_counter > 100:
+                quit()
             iteration_counter += 1
         print("Number of iterations in simulation: ", iteration_counter)
+        # Reset the accumulated heading error and previous heading error
+        self.accum_heading_error = 0.0
+        self.prev_heading_error = 0.0
         # Return 3xN trajectory
         return robot_traj
     
@@ -141,22 +154,31 @@ class PathPlanner:
         # Compute the error between the current and desired robot (x,y) states
         dx = x_s - x
         dy = y_s - y
-        target_dist = np.sqrt(dx**2 + dy**2)
+        distance = np.sqrt(dx**2 + dy**2)
+        dt = self.timestep / self.num_substeps
         # Compute the angle error between the current and desired robot angle states
         target_angle = np.arctan2(dy, dx)
-        angle_error = target_angle - theta
-        # Compute control velocities
-        vel_gain = 0.4
-        rot_gain = 0.5
-        vel = min(target_dist * vel_gain, self.vel_max)
-        rot_vel = min(self.rot_vel_max, max(-self.rot_vel_max, rot_gain * angle_error))
+        heading_error = np.arctan2(np.sin(target_angle - theta), np.cos(target_angle - theta))
+        self.accum_heading_error += heading_error
+        # PID feedback control law
+        rot_vel = self.kP * heading_error + self.kI * (self.accum_heading_error * dt) + self.kD * (heading_error - self.prev_heading_error)/dt
+        self.prev_heading_error = heading_error
+        # Limit the rotational velocity to the maximum rotational velocity
+        rot_vel = np.clip(rot_vel, -self.rot_vel_max, self.rot_vel_max)
+        # Only move forward if roughly pointing at target (within ~30 degrees)
+        if abs(heading_error) > 0.5:  # About 30 degrees
+            vel = 0  # Stop and turn to face target
+        else:
+            # Velocity proportional to distance but with exponential decay
+            vel = self.vel_max * (distance/5.0) * np.exp(-abs(heading_error))
+            vel = np.clip(vel, 0, min(self.vel_max, distance)) 
         return vel, rot_vel
     
     def trajectory_rollout(self, vel, rot_vel):
         # Given your chosen velocities determine the trajectory of the robot for your given timestep
         # The returned trajectory should be a series of points to check for collisions
         """Implement a way to rollout the controls chosen"""
-        dt = self.timestep # Trajectory over one substep time
+        dt = self.timestep / self.num_substeps # Trajectory over one substep time
         trajectory = np.zeros((3, self.num_substeps))
         x, y, theta = 0, 0, 0
         for i in range(self.num_substeps):
@@ -164,9 +186,13 @@ class PathPlanner:
             # dx/dt = vcos(theta)
             # dy/dt = vsin(theta)
             # dtheta/dt = omega
-            x = x + vel * np.cos(theta) * dt
-            y = y + vel * np.sin(theta) * dt
-            theta = theta + rot_vel * dt
+            dtheta = rot_vel * dt
+            theta_avg = theta + dtheta / 2
+            x += vel * np.cos(theta_avg) * dt
+            y += vel * np.sin(theta_avg) * dt
+            theta += dtheta
+            # Normalize theta to prevent accumulation
+            theta = np.arctan2(np.sin(theta), np.cos(theta))
             trajectory[0, i] = x
             trajectory[1, i] = y
             trajectory[2, i] = theta
