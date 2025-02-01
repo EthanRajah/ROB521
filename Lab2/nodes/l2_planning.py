@@ -170,7 +170,7 @@ class PathPlanner:
             vel = 0  # Stop and turn to face target
         else:
             # Velocity proportional to distance but with exponential decay
-            vel = self.vel_max * (distance/5.0) * np.exp(-abs(heading_error))
+            vel = self.vel_max * (distance/10.0) * np.exp(-abs(heading_error))
             vel = np.clip(vel, 0, min(self.vel_max, distance)) 
         return vel, rot_vel
     
