@@ -117,13 +117,12 @@ class PathPlanner:
 
         # Do one iteration of the controller to get the initial trajectory
         vel, rot_vel = self.robot_controller(current_node, point_s)
-        robot_traj = self.trajectory_rollout(vel, rot_vel)
+        robot_traj = self.trajectory_rollout(vel, rot_vel) + current_node.reshape(3, 1)
         current_node = robot_traj[:, -1]
 
         while (np.linalg.norm(current_node[0:2] - point_s) > self.stopping_dist):
             vel, rot_vel = self.robot_controller(current_node, point_s)
             current_traj = self.trajectory_rollout(vel, rot_vel) + current_node.reshape(3, 1)
-            print("Current node: ", current_node)
             robot_traj = np.hstack((robot_traj, current_traj))
             current_node = robot_traj[:, -1]
             iteration_counter += 1
@@ -171,6 +170,7 @@ class PathPlanner:
             trajectory[0, i] = x
             trajectory[1, i] = y
             trajectory[2, i] = theta
+        # Return 3xN trajectory set of waypoints
         return trajectory
     
     def point_to_cell(self, point):
