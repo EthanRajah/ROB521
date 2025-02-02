@@ -55,9 +55,10 @@ class PathPlanner:
         self.rot_vel_max = 0.2 #rad/s (Feel free to change!)
 
         # Control Parameters
-        self.kP = 1.0
-        self.kI = 0.01
-        self.kD = 0.1
+        self.kP = 0.7
+        self.kI = 0.001
+        self.kD = 0.05
+        self.linear_prop = 20.0
         self.prev_heading_error = 0.0
         self.accum_heading_error = 0.0
 
@@ -118,7 +119,7 @@ class PathPlanner:
         #This function drives the robot from node_i towards point_s. This function does has many solutions!
         #node_i is a 3 by 1 vector [x;y;theta] this can be used to construct the SE(2) matrix T_{OI} in course notation
         #point_s is the sampled point vector [x; y]
-        """Implment a method to simulate a trajectory given a sampled point"""
+        """Implement a method to simulate a trajectory given a sampled point"""
         current_node = node_i
         iteration_counter = 1
 
@@ -165,12 +166,12 @@ class PathPlanner:
         self.prev_heading_error = heading_error
         # Limit the rotational velocity to the maximum rotational velocity
         rot_vel = np.clip(rot_vel, -self.rot_vel_max, self.rot_vel_max)
-        # Only move forward if roughly pointing at target (within ~30 degrees)
-        if abs(heading_error) > 0.5:  # About 30 degrees
-            vel = 0  # Stop and turn to face target
+        # Only move forward if roughly pointing at target
+        if abs(heading_error) > 0.05:
+            vel = 0
         else:
             # Velocity proportional to distance but with exponential decay
-            vel = self.vel_max * (distance/10.0) * np.exp(-abs(heading_error))
+            vel = self.vel_max * (distance/self.linear_prop) * np.exp(-abs(heading_error))
             vel = np.clip(vel, 0, min(self.vel_max, distance)) 
         return vel, rot_vel
     
@@ -263,19 +264,18 @@ class PathPlanner:
         iter = 0
         while not goal_reached or iter <= max_iter: #Most likely need more iterations than this to complete the map!
             print("RRT Iteration: ", iter)
-            #Sample map space
+            # Sample map space
             point = self.sample_map_space()
             print("Sampled Point: ", point)
 
-            #Get the closest point
+            # Get the closest point
             closest_node_id = self.closest_node(point)
             print("Closest Node: ", self.nodes[closest_node_id].point)
 
-            #Simulate driving the robot towards the closest point
+            # Simulate driving the robot towards the closest point
             trajectory_o = self.simulate_trajectory(self.nodes[closest_node_id].point, point)
 
-            #Check for collisions
-            """Check for collisions and add safe points to list of nodes."""
+            # Check for collisions and add safe points to list of nodes.
             # Get the robot footprint for the trajectory points
             robot_footprint = self.points_to_robot_circle(trajectory_o[0:2, :])
             # Check if any of the robot footprint points are in an occupied cell
@@ -286,7 +286,6 @@ class PathPlanner:
             # Update the parent node's children list
             self.nodes[closest_node_id].children_ids.append(len(self.nodes) - 1)
             #Check if goal has been reached
-            """Check if at goal point."""
             if np.linalg.norm(self.nodes[-1].point[0:2] - self.goal_point) < self.stopping_dist:
                 print("Goal Reached.")
                 goal_reached = True
