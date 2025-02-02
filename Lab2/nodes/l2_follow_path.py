@@ -7,6 +7,7 @@ from scipy.linalg import block_diag
 from scipy.spatial.distance import cityblock
 import rospy
 import tf2_ros
+from skimage.draw import disk
 
 # msgs
 from geometry_msgs.msg import TransformStamped, Twist, PoseStamped
@@ -130,9 +131,13 @@ class PathFollower():
             local_paths[0] = np.atleast_2d(self.pose_in_map_np).repeat(self.num_opts, axis=0)
 
             print("TO DO: Propogate the trajectory forward, storing the resulting points in local_paths!")
-            for t in range(1, self.horizon_timesteps + 1):
-                # propogate trajectory forward, assuming perfect control of velocity and no dynamic effects
-                pass
+            for i, opt in enumerate(self.all_opts):
+                trajectory = self.trajectory_rollout(opt[0], opt[1], local_paths[0, i, 2]) # 3xN trajectory set of waypoints
+                # Store in local_paths[1:N, i, :]
+                local_paths[:, i, :] = trajectory.T + local_paths[0,i].reshape(1,3)
+
+            # Robot current coords in pixels
+            cur_y, cur_x = self.pos_in_map_pix[0], self.pos_in_map_pix[1]
 
             # check all trajectory points for collisions
             # first find the closest collision point in the map to each local path point
@@ -140,17 +145,44 @@ class PathFollower():
             valid_opts = range(self.num_opts)
             local_paths_lowest_collision_dist = np.ones(self.num_opts) * 50
 
+            # Range for comparing current point to surrounding obstacles
+            check_radius = 10
+            collision_indices = np.where(np.logical_and(abs(self.map_nonzero_idxes[:,0] - cur_x) < check_radius, abs(self.map_nonzero_idxes[:,1] - cur_y) < check_radius))
+            collision_range = self.map_nonzero_idxes[collision_indices]
+
             print("TO DO: Check the points in local_path_pixels for collisions")
             for opt in range(local_paths_pixels.shape[1]):
                 for timestep in range(local_paths_pixels.shape[0]):
-                    pass
+                    # For each pt in trajectory, check for a collision in a circle around the robot of radius self.collision_radius_pix
+                    cur_pixel = local_paths_pixels[timestep, opt]
+                    robot_footprint = self.points_to_robot_circle(cur_pixel)
+                    if np.any(self.map_nonzero_idxes[robot_footprint[0], robot_footprint[1]]):
+                        # This is a collision so remove the option
+                        valid_opts.remove(opt)
+                        break
+                    else:
+                        # Get the closest distance to an obstacle
+                        dists = cityblock(collision_range.T, cur_pixel)
+                        closest_dist = np.min(dists)
+                        if closest_dist < local_paths_lowest_collision_dist[opt]:
+                            local_paths_lowest_collision_dist[opt] = closest_dist
+                        
 
-            # remove trajectories that were deemed to have collisions
-            print("TO DO: Remove trajectories with collisions!")
+
+            # # remove trajectories that were deemed to have collisions
+            # print("TO DO: Remove trajectories with collisions!")
 
             # calculate final cost and choose best option
             print("TO DO: Calculate the final cost and choose the best control option!")
-            final_cost = np.zeros(self.num_opts)
+            # Initialize to some high cost
+            final_cost = np.zeros(valid_opts)
+            for opt in valid_opts:
+                if (abs(local_paths[0][opt][0] - self.cur_goal[0]) < MIN_TRANS_DIST_TO_USE_ROT) and (abs(local_paths[0][opt][1] - self.cur_goal[1]) < MIN_TRANS_DIST_TO_USE_ROT):
+                    final_cost[opt] = (local_paths[-1][opt][0] - self.cur_goal[0])**2 + (local_paths[75][opt][1] - self.cur_goal[1])**2 + (local_paths[-1][opt][2] - self.cur_goal[2])**2
+                else:
+                    final_cost[opt] = (local_paths[-1][opt][0] - self.cur_goal[0])**2 + (local_paths[-1][opt][1] - self.cur_goal[1])**2 
+
+
             if final_cost.size == 0:  # hardcoded recovery if all options have collision
                 control = [-.1, 0]
             else:
@@ -201,8 +233,64 @@ class PathFollower():
         self.cmd_pub.publish(Twist())
         rospy.loginfo("Published zero vel on shutdown.")
 
+    def trajectory_rollout(self, vel, rot_vel, theta_i):
+            # Given your chosen velocities determine the trajectory of the robot for your given timestep
+            # The returned trajectory should be a series of points to check for collisions
+            """Implement a way to rollout the controls chosen"""
+            trajectory = np.array([[],[],[]])                          # initialize array
+            t = np.linspace(0.1, CONTROL_HORIZON, self.horizon_timesteps+1)
+            # If the robot is not rotating, use the unicycle model with zero angle moves 
+            if rot_vel == 0:
+                # Cant use exact equations, approximate with first order differential
+                x_I = [np.around((vel*t*np.cos(theta_i)),2)]
+                y_I = [np.around((vel*t*np.sin(theta_i)),2)]
+                theta_I = [np.zeros(self.horizon_timesteps+1)]
+            else:
+                # Integrate xdot = v*costheta and ydot = v*sintheta: 
+                # x = (v/w)*sin(wt + theta_i) - (v/w)*sin(theta_i)
+                x_I = [np.around((vel/rot_vel)*(np.sin(rot_vel*t + theta_i)-np.sin(theta_i)), 4)]
+                # y = -(v/w)*cos(wt + theta_i) + (v/w)*cos(theta_i)
+                y_I = [np.around((vel/rot_vel)*(np.cos(theta_i)-np.cos(rot_vel*t + theta_i)), 4)]
+                # theta = rot_vel*t
+                theta_I = [np.around(rot_vel*t, 4)]
 
-if __name__ == '__main__':
+            trajectory = np.vstack((x_I, y_I, theta_I))
+            # Return 3xN trajectory set of waypoints
+            return trajectory
+
+    def point_to_cell(self, point):
+            #Convert a series of [x,y] points in the map to the indices for the corresponding cell in the occupancy map
+            #point is a 2 by N matrix of points of interest
+            """Implement a method to get the map cell the robot is currently occupying"""
+            # Use self.bounds to map from point frame to occupancy map (pixel coordinates) frame (lower left corner)
+            offset = np.array(self.bounds[:, 0]).reshape(2, 1)
+            resolution = self.map_resolution # self.map_settings_dict["resolution"]
+            adjusted_pts = point - offset
+            # Since map y pixel coordinates are wrt the upper left corner, need to adjust y point coordinates (currently wrt lower left corner) based on map height
+            adjusted_pts[1, :] = self.map_np.shape[1] * resolution - adjusted_pts[1, :] 
+            # Transform the point to map frame, then use resolution to get cell indices
+            cell = (adjusted_pts / resolution).astype(int)
+            # Return new 2xN matrix of cell indices
+            return cell
+
+    def points_to_robot_circle(self, points):
+        #Convert a series of [x,y] points to robot map footprints for collision detection
+        #Hint: The disk function is included to help you with this function
+        """Implement a method to get the pixel locations of the robot path"""
+        # Get the robot radius in cells (pixel units)
+        robot_radius_cells = self.collision_radius_pix # self.robot_radius / self.map_settings_dict["resolution"]
+        # Convert points to cells
+        cells = self.point_to_cell(points)
+        # Use cell indices to create a circle around the robot for determining the cells that it occupies
+        robot_footprint = [[], []]
+        for cell in cells.T:
+            rr, cc = disk(cell, robot_radius_cells, shape=self.map_np.shape) # Pixel coordinates of robot footprint
+            robot_footprint = np.hstack((robot_footprint, np.vstack((rr, cc))))
+        # Convert float64 robot_footprint to int
+        robot_footprint = robot_footprint.astype(int)
+        return robot_footprint
+
+if __name__ == '__main__':#
     try:
         rospy.init_node('path_follower', log_level=rospy.DEBUG)
         pf = PathFollower()

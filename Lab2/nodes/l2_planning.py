@@ -266,7 +266,7 @@ class PathPlanner:
         max_iter = 1000
         iter = 0
         continue_count = 0
-        while not goal_reached or iter <= max_iter: #Most likely need more iterations than this to complete the map!
+        while not goal_reached and iter <= max_iter: #Most likely need more iterations than this to complete the map!
             print("RRT Iteration: ", iter)
             # Sample map space
             point = self.sample_map_space()
