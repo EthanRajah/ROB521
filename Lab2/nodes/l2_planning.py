@@ -125,19 +125,20 @@ class PathPlanner:
 
         # Do one iteration of the controller to get the initial trajectory
         vel, rot_vel = self.robot_controller(current_node, point_s)
-        robot_traj = self.trajectory_rollout(vel, rot_vel) + current_node.reshape(3, 1)
+        robot_traj = self.trajectory_rollout(vel, rot_vel, node_i[2]) + current_node.reshape(3, 1)
         current_node = robot_traj[:, -1]
 
         while (np.linalg.norm(current_node[0:2] - point_s) > self.stopping_dist):
             vel, rot_vel = self.robot_controller(current_node, point_s)
-            current_traj = self.trajectory_rollout(vel, rot_vel) + current_node.reshape(3, 1)
+            current_traj = self.trajectory_rollout(vel, rot_vel, current_node[2]) + current_node.reshape(3, 1)
             robot_traj = np.hstack((robot_traj, current_traj))
             current_node = robot_traj[:, -1]
-            print("Current robot state: ", current_node)
-            if iteration_counter > 100:
-                quit()
+            #print("Current robot state: ", current_node)
+            # if iteration_counter > 100:
+            #     # quit()
+            #     print("Exceeded 100 iterations in simulation")
             iteration_counter += 1
-        print("Number of iterations in simulation: ", iteration_counter)
+        #print("Number of iterations in simulation: ", iteration_counter)
         # Reset the accumulated heading error and previous heading error
         self.accum_heading_error = 0.0
         self.prev_heading_error = 0.0
@@ -175,28 +176,28 @@ class PathPlanner:
             vel = np.clip(vel, 0, min(self.vel_max, distance)) 
         return vel, rot_vel
     
-    def trajectory_rollout(self, vel, rot_vel):
+    def trajectory_rollout(self, vel, rot_vel, theta_i):
         # Given your chosen velocities determine the trajectory of the robot for your given timestep
         # The returned trajectory should be a series of points to check for collisions
         """Implement a way to rollout the controls chosen"""
-        dt = self.timestep / self.num_substeps # Trajectory over one substep time
-        trajectory = np.zeros((3, self.num_substeps))
-        x, y, theta = 0, 0, 0
-        for i in range(self.num_substeps):
-            # Update state using unicycle model equations:
-            # dx/dt = vcos(theta)
-            # dy/dt = vsin(theta)
-            # dtheta/dt = omega
-            dtheta = rot_vel * dt
-            theta_avg = theta + dtheta / 2
-            x += vel * np.cos(theta_avg) * dt
-            y += vel * np.sin(theta_avg) * dt
-            theta += dtheta
-            # Normalize theta to prevent accumulation
-            theta = np.arctan2(np.sin(theta), np.cos(theta))
-            trajectory[0, i] = x
-            trajectory[1, i] = y
-            trajectory[2, i] = theta
+        trajectory = np.array([[],[],[]])                          # initialize array
+        t = np.linspace(0.1, self.timestep, self.num_substeps+1)
+        # If the robot is not rotating, use the unicycle model with zero angle moves 
+        if rot_vel == 0:
+            # Cant use exact equations, approximate with first order differential
+            x_I = [np.around((vel*t*np.cos(theta_i)),2)]
+            y_I = [np.around((vel*t*np.sin(theta_i)),2)]
+            theta_I = [np.zeros(self.num_substeps+1)]
+        else:
+            # Integrate xdot = v*costheta and ydot = v*sintheta: 
+            # x = (v/w)*sin(wt + theta_i) - (v/w)*sin(theta_i)
+            x_I = [np.around((vel/rot_vel)*(np.sin(rot_vel*t + theta_i)-np.sin(theta_i)), 4)]
+            # y = -(v/w)*cos(wt + theta_i) + (v/w)*cos(theta_i)
+            y_I = [np.around((vel/rot_vel)*(np.cos(theta_i)-np.cos(rot_vel*t + theta_i)), 4)]
+            # theta = rot_vel*t
+            theta_I = [np.around(rot_vel*t, 4)]
+
+        trajectory = np.vstack((x_I, y_I, theta_I))
         # Return 3xN trajectory set of waypoints
         return trajectory
     
@@ -228,6 +229,8 @@ class PathPlanner:
         for cell in cells.T:
             rr, cc = disk(cell, robot_radius_cells, shape=self.map_shape) # Pixel coordinates of robot footprint
             robot_footprint = np.hstack((robot_footprint, np.vstack((rr, cc))))
+        # Convert float64 robot_footprint to int
+        robot_footprint = robot_footprint.astype(int)
         return robot_footprint
     #Note: If you have correctly completed all previous functions, then you should be able to create a working RRT function
 
@@ -262,6 +265,7 @@ class PathPlanner:
         goal_reached = False
         max_iter = 1000
         iter = 0
+        continue_count = 0
         while not goal_reached or iter <= max_iter: #Most likely need more iterations than this to complete the map!
             print("RRT Iteration: ", iter)
             # Sample map space
@@ -278,8 +282,12 @@ class PathPlanner:
             # Check for collisions and add safe points to list of nodes.
             # Get the robot footprint for the trajectory points
             robot_footprint = self.points_to_robot_circle(trajectory_o[0:2, :])
+            #print(robot_footprint.shape)
+            #quit()
             # Check if any of the robot footprint points are in an occupied cell
             if np.any(self.occupancy_map[robot_footprint[0, :], robot_footprint[1, :]]):
+                print("continue count: ", continue_count)
+                continue_count += 1
                 continue
             # Add the point to the list of nodes
             self.nodes.append(Node(point, closest_node_id, 0))
@@ -337,10 +345,13 @@ def main():
     #robot information
     goal_point = np.array([[7], [0]]) #m
     #goal_point = np.array([[10], [10]]) #m
-    stopping_dist = 0.5 #m
+    stopping_dist = 0.05#m
 
     #RRT precursor
     path_planner = PathPlanner(map_filename, map_setings_filename, goal_point, stopping_dist)
+    #point = path_planner.sample_map_space()
+    #print(point)
+    #path_planner.simulate_trajectory(np.array([[0], [0], [0]]), point)
     nodes = path_planner.rrt_planning()
     # nodes = path_planner.rrt_star_planning()
     node_path_metric = np.hstack(path_planner.recover_path())
