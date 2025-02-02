@@ -285,11 +285,12 @@ class PathPlanner:
             #print(robot_footprint.shape)
             #quit()
             # Check if any of the robot footprint points are in an occupied cell
-            if np.any(self.occupancy_map[robot_footprint[0, :], robot_footprint[1, :]]):
+            if not np.any(self.occupancy_map[robot_footprint[0, :], robot_footprint[1, :]]):
                 print("continue count: ", continue_count)
                 continue_count += 1
                 continue
             # Add the point to the list of nodes
+            point = np.vstack((point[0], point[1], np.arctan2(trajectory_o[1, -1], trajectory_o[0, -1])))
             self.nodes.append(Node(point, closest_node_id, 0))
             # Update the parent node's children list
             self.nodes[closest_node_id].children_ids.append(len(self.nodes) - 1)
@@ -351,7 +352,8 @@ def main():
     path_planner = PathPlanner(map_filename, map_setings_filename, goal_point, stopping_dist)
     #point = path_planner.sample_map_space()
     #print(point)
-    #path_planner.simulate_trajectory(np.array([[0], [0], [0]]), point)
+    # path_planner.simulate_trajectory(np.array([[0], [0], [0]]), point)
+    #print(path_planner.occupancy_map)
     nodes = path_planner.rrt_planning()
     # nodes = path_planner.rrt_star_planning()
     node_path_metric = np.hstack(path_planner.recover_path())
