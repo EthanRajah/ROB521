@@ -368,6 +368,8 @@ class PathPlanner:
             print("RRT Iteration: ", iter)
             #Sample
             point = self.sample_map_space()
+            if self.check_if_duplicate(point):
+                continue
             print("Sampled Point: ", point)
 
             #Closest Node
@@ -384,6 +386,12 @@ class PathPlanner:
             if not np.any(self.occupancy_map[robot_footprint[0, :], robot_footprint[1, :]]):
                 iter += 1
                 continue
+        
+            # Add the point to the list of nodes since no collision
+            point = np.vstack((point[0], point[1], np.arctan2(trajectory_o[1, -1], trajectory_o[0, -1])))
+            self.nodes.append(Node(point, closest_node_id, 0))
+            # Update the parent node's children list
+            self.nodes[closest_node_id].children_ids.append(len(self.nodes) - 1)
 
             #Last node rewire and close node rewire
             self.rewire()
