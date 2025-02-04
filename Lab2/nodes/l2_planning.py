@@ -186,8 +186,8 @@ class PathPlanner:
         """PD controller to get the robot to move towards the goal point"""
         theta_d = np.arctan2((point_s[1] - node_i[1]), (point_s[0] - node_i[0]))
         theta = node_i[2]
-        heading_error = np.around(self.normalize_angle(theta_d - theta), 3)
-        rot_vel = np.round(self.kP * (heading_error) + self.kD * (heading_error - self.prev_heading_error) / (self.timestep), 2)
+        err_head = np.around(self.normalize_angle(theta_d - theta), 3)
+        rot_vel = np.round(self.kP * (err_head) + self.kD * (err_head - self.prev_heading_error) / (self.timestep), 2)
     
         if rot_vel > self.rot_vel_max:
             rot_vel = self.rot_vel_max
@@ -195,7 +195,7 @@ class PathPlanner:
             rot_vel = -self.rot_vel_max
 
         vel = np.around(self.vel_max / (6 * abs(rot_vel) + 1), 2)
-        self.prev_heading_error = heading_error
+        self.prev_heading_error = err_head
 
         return vel, rot_vel
 
@@ -322,7 +322,7 @@ class PathPlanner:
             traj = self.connect_node_to_point(self.nodes[min_node_id].point, self.nodes[node_id].point[0:2])
             collision = self.check_collision(traj)
             if not collision:
-                self.window.add_line(self.nodes[node_id].point[:2].flatten(), self.nodes[min_node_id].point[:2].flatten())
+                self.window.add_point(self.nodes[node_id].point[:2].flatten())
 
         # After rewiring the other nodes in the ball need to be checked again to see if new path edge helps
         if updated:
@@ -346,7 +346,7 @@ class PathPlanner:
                         traj = self.connect_node_to_point(self.nodes[node_id].point, self.nodes[i].point[0:2])
                         collision = self.check_collision(traj)
                         if not collision:
-                            self.window.add_line(self.nodes[node_id].point[:2].flatten(), self.nodes[i].point[:2].flatten())
+                            self.window.add_point(self.nodes[i].point[:2].flatten())
                         node_id = i
                         # Update the children of the node
                         self.update_children(node_id, cost_delta)
@@ -412,7 +412,7 @@ class PathPlanner:
                         traj = self.connect_node_to_point(self.nodes[closest_node_id].point, robot_traj[:2, i])
                         collision = self.check_collision(traj)
                         if not collision:
-                            self.window.add_line(self.nodes[closest_node_id].point[:2].flatten(), robot_traj[:2, i].flatten())
+                            self.window.add_point(robot_traj[:2, i].flatten())
                         self.nodes_added += 1
 
                     else:
@@ -428,7 +428,7 @@ class PathPlanner:
                         traj = self.connect_node_to_point(self.nodes[closest_node_id].point, robot_traj[:2, i])
                         collision = self.check_collision(traj)
                         if not collision:
-                            self.window.add_line(self.nodes[-2].point[:2].flatten(), robot_traj[:2, i].flatten())
+                            self.window.add_point(robot_traj[:2, i].flatten())
                         self.nodes_added += 1
 
                     dist_from_goal = np.linalg.norm(self.nodes[-1].point[:2] - self.goal_point)
