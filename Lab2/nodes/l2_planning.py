@@ -293,14 +293,14 @@ class PathPlanner:
             if np.linalg.norm(self.nodes[i].point[0:2] - self.nodes[node_id].point[0:2]) < ball_radius:
                 # Get the cost to come for the new trajectory
                 trajectory_o = self.connect_node_to_point(self.nodes[i].point, self.nodes[node_id].point[0:2])
-                cost_to_come = self.cost_to_come(trajectory_o)
+                cost_to_come = self.cost_to_come(trajectory_o) #### + self.nodes[i].cost
                 # Check if the new cost to come is less than the current cost to come
                 if cost_to_come < self.nodes[node_id].cost:
                     # Update the parent and cost of the node
                     self.nodes[node_id].parent_id = i
                     self.nodes[node_id].cost = cost_to_come
                     # Update the children of the node
-                    self.update_children(node_id, cost_to_come)
+                    self.update_children(node_id, cost_to_come) #### remove
                     updated = True
 
         # After rewiring the other nodes in the ball need to be checked again to see if new path edge helps
@@ -309,7 +309,7 @@ class PathPlanner:
                 if np.linalg.norm(self.nodes[i].point[0:2] - self.nodes[node_id].point[0:2]) < ball_radius:
                     # Get the cost to come for the new trajectory
                     trajectory_o = self.connect_node_to_point(self.nodes[node_id].point, self.nodes[i].point[0:2])
-                    cost_to_come = self.cost_to_come(trajectory_o)
+                    cost_to_come = self.cost_to_come(trajectory_o) #### + self.nodes[node_id].cost
                     # Check if the new cost to come is less than the current cost to come
                     if cost_to_come < self.nodes[i].cost:
                         # Update the parent and cost of the node
@@ -317,6 +317,48 @@ class PathPlanner:
                         self.nodes[i].cost = cost_to_come
                         # Update the children of the node
                         self.update_children(i, cost_to_come)
+    
+    def add_nodes_to_graph(self, closest_node_id, robot_traj):
+        """Add the nodes to the graph."""
+        points_shape   = np.shape(robot_traj)
+        points_total   = points_shape[1]
+        
+        # list to keep track of duplicate elements 
+        dupl_list = {}
+        self.nodes_added  = 0
+
+        # no collision in the trajectory
+        for i in range(points_total):
+            # check for duplicate node
+            duplicate = self.check_if_duplicate(robot_traj[:2, i].reshape(2,1))
+
+            if duplicate:
+                dupl_list[i] = duplicate[1]            
+            else:              
+                if i==0:   # closest_node is the parent
+                    dist_to_parent = np.linalg.norm(robot_traj[:2, i].reshape(2,1) - self.nodes[closest_node_id].point[:2])
+                    cost_to_come   = round(self.nodes[closest_node_id].cost + dist_to_parent, 2)
+                    self.nodes.append(Node(robot_traj[:, i].reshape((3,1)), closest_node_id, cost_to_come))
+                    self.nodes[closest_node_id].children_ids.append(len(self.nodes)-1)
+                    self.window.add_line(self.nodes[closest_node_id].point[:2].flatten(), robot_traj[:2, i].flatten())
+                    self.nodes_added += 1
+
+                else:      
+                    if (i-1) in dupl_list.keys():  # the node was not added
+                        prev_node_idx = dupl_list[i-1]
+                    else:
+                        prev_node_idx = -1
+
+                    dist_to_parent = np.linalg.norm(robot_traj[:2, i].reshape(2,1) - self.nodes[prev_node_idx].point[:2])
+                    cost_to_come   = round(self.nodes[prev_node_idx].cost + dist_to_parent, 2)
+                    self.nodes.append(Node(robot_traj[:, i].reshape((3,1)), len(self.nodes)-1, cost_to_come))
+                    self.nodes[-2].children_ids.append(len(self.nodes)-1)
+                    self.window.add_line(self.nodes[-2].point[:2].flatten(), robot_traj[:2, i].flatten())
+                    self.nodes_added += 1
+
+                dist_from_goal = np.linalg.norm(self.nodes[-1].point[:2] - self.goal_point)
+                if dist_from_goal <= self.stopping_dist:
+                    self.goal_reached = True
 
     #Planner Functions
     def rrt_planning(self):
@@ -347,14 +389,7 @@ class PathPlanner:
                 iter += 1
                 continue
             # Add the point to the list of nodes
-            point = np.vstack((point[0], point[1], np.arctan2(trajectory_o[1, -1], trajectory_o[0, -1])))
-            self.nodes.append(Node(point, closest_node_id, 0))
-            # Update the parent node's children list
-            self.nodes[closest_node_id].children_ids.append(len(self.nodes) - 1)
-            #Check if goal has been reached
-            if np.linalg.norm(self.nodes[-1].point[0:2] - self.goal_point) < self.stopping_dist:
-                print("Goal Reached.")
-                goal_reached = True
+            self.add_nodes_to_graph(closest_node_id, trajectory_o)
             iter += 1
 
         return self.nodes
@@ -430,8 +465,8 @@ def main():
     #print(point)
     # path_planner.simulate_trajectory(np.array([[0], [0], [0]]), point)
     #print(path_planner.occupancy_map)
-    # nodes = path_planner.rrt_planning()
-    nodes = path_planner.rrt_star_planning()
+    nodes = path_planner.rrt_planning()
+    # nodes = path_planner.rrt_star_planning()
     node_path_metric = np.hstack(path_planner.recover_path())
 
     #Leftover test functions
