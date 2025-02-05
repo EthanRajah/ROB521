@@ -311,7 +311,7 @@ class PathPlanner:
         # Update the parent and cost of the node with minimum if found
         if min_node_id is not None and not collision:
             # Update plot
-            self.window.remove_line(self.nodes[node_id].point[:2].flatten(), self.nodes[cur_parent_id].point[:2].flatten())
+            # self.window.remove_line(self.nodes[node_id].point[:2].flatten(), self.nodes[cur_parent_id].point[:2].flatten())
             # Remove final node from parent children
             self.nodes[cur_parent_id].children_ids.remove(node_id)
             # Update parent and cost of the node
@@ -337,7 +337,7 @@ class PathPlanner:
                         # Update the parent and cost of the node
                         cost_delta = self.nodes[i].cost - cost_to_come
                         cur_parent_id = self.nodes[i].parent_id
-                        self.window.remove_line(self.nodes[i].point[:2].flatten(), self.nodes[cur_parent_id].point[:2].flatten())
+                        # self.window.remove_line(self.nodes[i].point[:2].flatten(), self.nodes[cur_parent_id].point[:2].flatten())
                         self.nodes[cur_parent_id].children_ids.remove(i)
                         self.nodes[i].parent_id = node_id
                         self.nodes[i].cost = cost_to_come
