@@ -1,6 +1,6 @@
 # Fdb version 4
-["pdflatex"] 1741229689.40181 "/Users/ethan/Documents/Robotics/ROB521/A2/report/main.tex" "main.pdf" "main" 1741229690.00174 0
-  "/Users/ethan/Documents/Robotics/ROB521/A2/report/main.tex" 1741229687.9566 5219 d9f06c2f382fbdfcd792d1b262f7764d ""
+["pdflatex"] 1741371687.43138 "/Users/ethan/Documents/Robotics/ROB521/A2/report/main.tex" "main.pdf" "main" 1741371688.03355 0
+  "/Users/ethan/Documents/Robotics/ROB521/A2/report/main.tex" 1741371686.47622 5219 d9f06c2f382fbdfcd792d1b262f7764d ""
   "/Users/ethan/Library/Application Support/MiKTeX/texmfs/data/fonts/map/pdftex/pdftex.map" 1739857078.0861 84689 a4a324fca423343a3f44a5e110662f52 ""
   "/Users/ethan/Library/Application Support/MiKTeX/texmfs/data/fonts/pk/ljfour/jknappen/ec/dpi600/ecbx1000.pk" 1739857334.20853 25420 df692687757b0a45666dffa5304f54dc ""
   "/Users/ethan/Library/Application Support/MiKTeX/texmfs/data/fonts/pk/ljfour/jknappen/ec/dpi600/ecbx1440.pk" 1736440105.45279 40136 5f9f4664328c3a675387f8ae338cbb5f ""
@@ -83,12 +83,12 @@
   "/Users/ethan/Library/Application Support/MiKTeX/texmfs/install/tex/latex/matlab-prettifier/matlab-prettifier.sty" 1739857077.46494 15090 356c8abf6910d571ce0de3250a16151a ""
   "/Users/ethan/Library/Application Support/MiKTeX/texmfs/install/tex/latex/tools/indentfirst.sty" 1736128288.46802 1618 d81d7e8646081fd4049b99a8cd8a91df ""
   "/Users/ethan/Library/Application Support/MiKTeX/texmfs/install/tex/latex/xcolor/xcolor.sty" 1736128296.19378 55384 b454dec21c2d9f45ec0b793f0995b992 ""
-  "ROB521_assignment2.m" 1741224941.27415 10209 d432687b18f605ed4145a45fd33392db ""
+  "ROB521_assignment2.m" 1741371667.57916 10209 43521fa3e2e7315d79d31fedadadda44 ""
   "ass1_q1.png" 1741224754.74474 57144 fef7b9810b82668ce7dd57845dd325cd ""
   "ass1_q2.png" 1741224754.74755 75546 696742e5d684d75676679629a582e398 ""
   "ass1_q3.png" 1741224754.74946 22502 4180f127e71b22a3a1ecbfce0d661647 ""
-  "main.aux" 1741229689.91088 1311 c1abc1f2db30eee69f6d805c8ad1b275 "pdflatex"
-  "main.tex" 1741229687.9566 5219 d9f06c2f382fbdfcd792d1b262f7764d ""
+  "main.aux" 1741371687.941 1311 c1abc1f2db30eee69f6d805c8ad1b275 "pdflatex"
+  "main.tex" 1741371686.47622 5219 d9f06c2f382fbdfcd792d1b262f7764d ""
   (generated)
   "main.aux"
   "main.log"

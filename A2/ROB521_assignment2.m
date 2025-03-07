@@ -254,8 +254,8 @@ for n=1:2
         % Only plot for low rotational velocities to avoid interpolation errors.
         if abs(omega_interp(i)) < 0.1
             % Transform laser scans into current robot frame
-            laser_curr_robo_x = (y_laser(i,:)-0.1).*cos_angles;
-            laser_curr_robo_y = (y_laser(i,:)-0.1).*sin_angles;
+            laser_curr_robo_x = (y_laser(i,:)+0.1).*cos_angles;
+            laser_curr_robo_y = (y_laser(i,:)+0.1).*sin_angles;
 
             % Transform current frame laser scans into initial robot frame (using principle rotation about z-axis)
             laser_initial_robo_x = laser_curr_robo_x.*cos(theta_interp(i)) - laser_curr_robo_y.*sin(theta_interp(i)) + x_interp(i);
